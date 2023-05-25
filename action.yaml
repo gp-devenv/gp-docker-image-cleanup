@@ -1,0 +1,30 @@
+#
+# gp-docker-image-cleanup
+# Copyright (c) 2023, OSkey SAS. All rights reserved.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+
+name: gp-devenv/gp-docker-image-cleanup
+author: Greg PFISTER
+description: Github action to cleanup Docker images hosted on Github
+inputs:
+    package:
+        description: Package name (<owner>/<name>), when not the same as the repository
+        required: false
+    isOwnedByOrganization:
+        description: Is this package owned by an isOrganization ?
+        required: false
+        default: 'false'
+    runAsUser:
+        description: User who will be used to interact with ghcr.io API
+        required: true
+runs:
+    using: 'node16'
+    main: 'dist/main.js'

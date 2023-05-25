@@ -1,0 +1,48 @@
+{
+  "name": "gp-docker-image-cleanup",
+  "version": "1.0.0",
+  "description": "Github action to cleanup Docker images hosted on Github",
+  "main": "dist/action.js",
+  "scripts": {
+    "build": "rm -rf dist/ && npx tsc --sourceMap",
+    "build:watch": "concurrently \"npx tsc --watch\" \"node\"",
+    "lint": "npx eslint ./src --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "npx eslint ./src --ext .js,.jsx,.ts,.tsx --fix",
+    "lint:test": "npx eslint ./test --ext .js,.jsx,.ts,.tsx",
+    "lint:test:fix": "npx eslint ./test --ext .js,.jsx,.ts,.tsx",
+    "clean": "rm -rf ./dist",
+    "test": "mocha --require ts-node/register ./test/*.spec.ts --timeout 60000",
+    "test:bail": "mocha --require ts-node/register ./test/*.spec.ts --timeout 60000 --bail"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gp-devenv/gp-docker-image-cleanup.git"
+  },
+  "author": "Greg PFISTER",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/gp-devenv/gp-docker-image-cleanup/issues"
+  },
+  "homepage": "https://github.com/gp-devenv/gp-docker-image-cleanup#readme",
+  "dependencies": {
+    "@actions/core": "^1.10.0",
+    "@actions/exec": "^1.1.1",
+    "@actions/github": "^5.1.1",
+    "axios": "^1.4.0"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.3.5",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^16.18.33",
+    "@typescript-eslint/eslint-plugin": "^5.59.7",
+    "@typescript-eslint/parser": "^5.59.7",
+    "chai": "^4.3.7",
+    "eslint": "^8.41.0",
+    "eslint-plugin-import": "^2.27.5",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-promise": "^6.1.1",
+    "mocha": "^10.2.0",
+    "prettier": "^2.8.8",
+    "typescript": "^4.9.5"
+  }
+}
