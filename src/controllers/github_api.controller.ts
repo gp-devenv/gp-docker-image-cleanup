@@ -35,7 +35,7 @@ export class GPGithubApiController {
         }
         this.isOwnedByOrganization = isOwnedByOrganization;
 
-        core.debug(`Package owner: ${this.packageOwner}${this.isOwnedByOrganization ? ' (organization)' : ''}`);
+        core.debug(`Package owner: ${this.packageOwner} ${this.isOwnedByOrganization ? '(organization)' : '(user)'}`);
         core.debug(`Package name: ${this.packageName}`);
     }
 
@@ -54,7 +54,7 @@ export class GPGithubApiController {
     async deletePackageVersion(packageId: number) {
         try {
             if (this.isOwnedByOrganization) {
-                await this.deletePackageVersionOwnedByOrg(packageId);
+                await this.deletePackageVersionOwnedByOrganization(packageId);
             } else {
                 await this.deletePackageVersionOwnedByUser(packageId);
             }
@@ -74,7 +74,7 @@ export class GPGithubApiController {
         });
         let packageVersions = request.data;
         let page = 1;
-        core.debug(`${packageVersions.length} record(s) fetched (+${request.data.length})`);
+        core.debug(`(org) ${packageVersions.length} record(s) fetched`);
         while (request.data.length === 100) {
             page++;
             request = await gh.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
@@ -85,7 +85,7 @@ export class GPGithubApiController {
                 per_page: 100,
             });
             packageVersions = [...packageVersions, ...request.data];
-            core.debug(`${packageVersions.length} record(s) fetched (+${request.data.length})`);
+            core.debug(`(org) ${packageVersions.length} record(s) fetched (+${request.data.length})`);
         }
 
         return packageVersions.map<GPGithubPackageVersion>((packageVersion) => {
@@ -104,7 +104,7 @@ export class GPGithubApiController {
         });
         let packageVersions = request.data;
         let page = 1;
-        core.debug(`${packageVersions.length} record(s) fetched (+${request.data.length})`);
+        core.debug(`(user) ${packageVersions.length} record(s) fetched`);
         while (request.data.length === 100) {
             page++;
             request = await gh.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
@@ -115,7 +115,7 @@ export class GPGithubApiController {
                 per_page: 100,
             });
             packageVersions = [...packageVersions, ...request.data];
-            core.debug(`${packageVersions.length} record(s) fetched (+${request.data.length})`);
+            core.debug(`(user) ${packageVersions.length} record(s) fetched (+${request.data.length})`);
         }
 
         return packageVersions.map<GPGithubPackageVersion>((packageVersion) => {
@@ -123,29 +123,29 @@ export class GPGithubApiController {
         });
     }
 
-    private async deletePackageVersionOwnedByOrg(packageId: number) {
+    private async deletePackageVersionOwnedByOrganization(packageId: number) {
         const gh = github.getOctokit(this.token);
 
-        core.debug(`Deleting ${this.packageOwner}/${this.packageName} with id ${packageId}`);
+        core.debug(`(org) Deleting ${this.packageOwner}/${this.packageName} with id ${packageId}`);
         await gh.rest.packages.deletePackageVersionForOrg({
             package_type: 'container',
             package_name: this.packageName,
             org: this.packageOwner,
             package_version_id: packageId,
         });
-        core.debug(`${this.packageOwner}/${this.packageName} with id ${packageId} deleted !`);
+        core.debug(`(org) ${this.packageOwner}/${this.packageName} with id ${packageId} deleted !`);
     }
 
     private async deletePackageVersionOwnedByUser(packageId: number) {
         const gh = github.getOctokit(this.token);
 
-        core.debug(`Deleting ${this.packageOwner}/${this.packageName} with id ${packageId}`);
+        core.debug(`(user) Deleting ${this.packageOwner}/${this.packageName} with id ${packageId}`);
         await gh.rest.packages.deletePackageVersionForUser({
             package_type: 'container',
             package_name: this.packageName,
             username: this.packageOwner,
             package_version_id: packageId,
         });
-        core.debug(`${this.packageOwner}/${this.packageName} with id ${packageId} deleted !`);
+        core.debug(`(user) ${this.packageOwner}/${this.packageName} with id ${packageId} deleted !`);
     }
 }

@@ -27,7 +27,7 @@ export class GPGithubContainerRegistryAPIController {
         this.packageOwner = packageOwner;
         this.isOwnedByOrganization = isOwnedByOrganization;
 
-        core.debug(`Package owner: ${this.packageOwner}${this.isOwnedByOrganization ? ' (organization)' : ''}`);
+        core.debug(`Package owner: ${this.packageOwner} ${this.isOwnedByOrganization ? '(organization)' : '(org)'}`);
         core.debug(`Package name: ${this.packageName}`);
     }
 

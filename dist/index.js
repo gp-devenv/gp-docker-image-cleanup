@@ -52,6 +52,7 @@ const input = {
     package: core.getInput('package', { required: false }),
     isOwnedByOrganization: core.getBooleanInput('isOwnedByOrganization', { required: false }),
     retentionDays: parseInt(core.getInput('retentionDays', { required: false })),
+    testOnly: core.getBooleanInput('testOnly', { required: false }),
 };
 const referenceEpoc = Date.now();
 async function run() {
@@ -59,7 +60,8 @@ async function run() {
     core.debug(`input.token: ${Array(input.token.length).join('*')}`);
     core.debug(`input.isOwnedByOrganization: ${input.isOwnedByOrganization}`);
     core.debug(`input.retentionDays: ${input.retentionDays}`);
-    core.debug(`github.context.repo: ${github.context.repo}`);
+    core.debug(`input.testOnly: ${input.testOnly}`);
+    core.debug(`github.context.repo: ${github.context.repo.owner}/${github.context.repo.repo}`);
     const githubApiController = new github_api_controller_1.GPGithubApiController(input.token, input.package.length > 0 ? { package: input.package } : { repository: `${github.context.repo.owner}/${github.context.repo.repo}` }, input.isOwnedByOrganization);
     const githubContainerRegistryAPIController = await github_container_registry_api_controller_1.GPGithubContainerRegistryAPIController.create(input.token, input.package.length > 0 ? { package: input.package } : { repository: `${github.context.repo.owner}/${github.context.repo.repo}` }, input.isOwnedByOrganization, input.runAsUser);
     try {
@@ -81,8 +83,9 @@ async function run() {
             else {
                 if (untaggedPackageVersionsToKeep.findIndex((untaggedPackageVersion) => untaggedPackageVersion.name === packageVersion.name) < 0) {
                     if (referenceEpoc - packageVersion.creationDate.getTime() > input.retentionDays * 24 * 3600 * 1000) {
-                        // await githubApiController.deletePackageVersion(packageVersion.id);
-                        core.info(`Package id ${packageVersion.id} created at ${packageVersion.creationDate.toISOString()} (${packageVersion.name}) ---> DELETED !`);
+                        core.info(`Package id ${packageVersion.id} created at ${packageVersion.creationDate.toISOString()} (${packageVersion.name}) ---> will be deleted !`);
+                        if (!input.testOnly)
+                            await githubApiController.deletePackageVersion(packageVersion.id);
                         totalDeleted++;
                     }
                     else {
@@ -168,7 +171,7 @@ class GPGithubApiController {
             this.packageName = splitPackage[1];
         }
         this.isOwnedByOrganization = isOwnedByOrganization;
-        core.debug(`Package owner: ${this.packageOwner}${this.isOwnedByOrganization ? ' (organization)' : ''}`);
+        core.debug(`Package owner: ${this.packageOwner} ${this.isOwnedByOrganization ? '(organization)' : '(user)'}`);
         core.debug(`Package name: ${this.packageName}`);
     }
     async getAllPackageVersions() {
@@ -187,7 +190,7 @@ class GPGithubApiController {
     async deletePackageVersion(packageId) {
         try {
             if (this.isOwnedByOrganization) {
-                await this.deletePackageVersionOwnedByOrg(packageId);
+                await this.deletePackageVersionOwnedByOrganization(packageId);
             }
             else {
                 await this.deletePackageVersionOwnedByUser(packageId);
@@ -207,7 +210,7 @@ class GPGithubApiController {
         });
         let packageVersions = request.data;
         let page = 1;
-        core.debug(`${packageVersions.length} record(s) fetched (+${request.data.length})`);
+        core.debug(`(org) ${packageVersions.length} record(s) fetched`);
         while (request.data.length === 100) {
             page++;
             request = await gh.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
@@ -218,7 +221,7 @@ class GPGithubApiController {
                 per_page: 100,
             });
             packageVersions = [...packageVersions, ...request.data];
-            core.debug(`${packageVersions.length} record(s) fetched (+${request.data.length})`);
+            core.debug(`(org) ${packageVersions.length} record(s) fetched (+${request.data.length})`);
         }
         return packageVersions.map((packageVersion) => {
             return { name: packageVersion.name, id: packageVersion.id, tags: packageVersion.metadata?.container?.tags || [], creationDate: new Date(packageVersion.created_at) };
@@ -234,7 +237,7 @@ class GPGithubApiController {
         });
         let packageVersions = request.data;
         let page = 1;
-        core.debug(`${packageVersions.length} record(s) fetched (+${request.data.length})`);
+        core.debug(`(user) ${packageVersions.length} record(s) fetched`);
         while (request.data.length === 100) {
             page++;
             request = await gh.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
@@ -245,33 +248,33 @@ class GPGithubApiController {
                 per_page: 100,
             });
             packageVersions = [...packageVersions, ...request.data];
-            core.debug(`${packageVersions.length} record(s) fetched (+${request.data.length})`);
+            core.debug(`(user) ${packageVersions.length} record(s) fetched (+${request.data.length})`);
         }
         return packageVersions.map((packageVersion) => {
             return { name: packageVersion.name, id: packageVersion.id, tags: packageVersion.metadata?.container?.tags || [], creationDate: new Date(packageVersion.created_at) };
         });
     }
-    async deletePackageVersionOwnedByOrg(packageId) {
+    async deletePackageVersionOwnedByOrganization(packageId) {
         const gh = github.getOctokit(this.token);
-        core.debug(`Deleting ${this.packageOwner}/${this.packageName} with id ${packageId}`);
+        core.debug(`(org) Deleting ${this.packageOwner}/${this.packageName} with id ${packageId}`);
         await gh.rest.packages.deletePackageVersionForOrg({
             package_type: 'container',
             package_name: this.packageName,
             org: this.packageOwner,
             package_version_id: packageId,
         });
-        core.debug(`${this.packageOwner}/${this.packageName} with id ${packageId} deleted !`);
+        core.debug(`(org) ${this.packageOwner}/${this.packageName} with id ${packageId} deleted !`);
     }
     async deletePackageVersionOwnedByUser(packageId) {
         const gh = github.getOctokit(this.token);
-        core.debug(`Deleting ${this.packageOwner}/${this.packageName} with id ${packageId}`);
+        core.debug(`(user) Deleting ${this.packageOwner}/${this.packageName} with id ${packageId}`);
         await gh.rest.packages.deletePackageVersionForUser({
             package_type: 'container',
             package_name: this.packageName,
             username: this.packageOwner,
             package_version_id: packageId,
         });
-        core.debug(`${this.packageOwner}/${this.packageName} with id ${packageId} deleted !`);
+        core.debug(`(user) ${this.packageOwner}/${this.packageName} with id ${packageId} deleted !`);
     }
 }
 exports.GPGithubApiController = GPGithubApiController;
@@ -333,7 +336,7 @@ class GPGithubContainerRegistryAPIController {
         this.packageName = packageName;
         this.packageOwner = packageOwner;
         this.isOwnedByOrganization = isOwnedByOrganization;
-        core.debug(`Package owner: ${this.packageOwner}${this.isOwnedByOrganization ? ' (organization)' : ''}`);
+        core.debug(`Package owner: ${this.packageOwner} ${this.isOwnedByOrganization ? '(organization)' : '(org)'}`);
         core.debug(`Package name: ${this.packageName}`);
     }
     static async create(token, targetPackage, isOwnedByOrganization, runAsUser) {

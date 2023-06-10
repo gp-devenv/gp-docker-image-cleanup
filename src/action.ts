@@ -23,6 +23,7 @@ const input = {
     package: core.getInput('package', { required: false }),
     isOwnedByOrganization: core.getBooleanInput('isOwnedByOrganization', { required: false }),
     retentionDays: parseInt(core.getInput('retentionDays', { required: false })),
+    testOnly: core.getBooleanInput('testOnly', { required: false }),
 };
 
 const referenceEpoc = Date.now();
@@ -32,7 +33,8 @@ async function run() {
     core.debug(`input.token: ${Array(input.token.length).join('*')}`);
     core.debug(`input.isOwnedByOrganization: ${input.isOwnedByOrganization}`);
     core.debug(`input.retentionDays: ${input.retentionDays}`);
-    core.debug(`github.context.repo: ${github.context.repo}`);
+    core.debug(`input.testOnly: ${input.testOnly}`);
+    core.debug(`github.context.repo: ${github.context.repo.owner}/${github.context.repo.repo}`);
 
     const githubApiController = new GPGithubApiController(input.token, input.package.length > 0 ? { package: input.package } : { repository: `${github.context.repo.owner}/${github.context.repo.repo}` }, input.isOwnedByOrganization);
     const githubContainerRegistryAPIController = await GPGithubContainerRegistryAPIController.create(
@@ -60,8 +62,8 @@ async function run() {
             else {
                 if (untaggedPackageVersionsToKeep.findIndex((untaggedPackageVersion) => untaggedPackageVersion.name === packageVersion.name) < 0) {
                     if (referenceEpoc - packageVersion.creationDate.getTime() > input.retentionDays * 24 * 3600 * 1000) {
-                        // await githubApiController.deletePackageVersion(packageVersion.id);
-                        core.info(`Package id ${packageVersion.id} created at ${packageVersion.creationDate.toISOString()} (${packageVersion.name}) ---> DELETED !`);
+                        core.info(`Package id ${packageVersion.id} created at ${packageVersion.creationDate.toISOString()} (${packageVersion.name}) ---> will be deleted !`);
+                        if (!input.testOnly) await githubApiController.deletePackageVersion(packageVersion.id);
                         totalDeleted++;
                     } else {
                         core.info(`Package id ${packageVersion.id} created at ${packageVersion.creationDate.toISOString()} (${packageVersion.name})`);

@@ -29,13 +29,17 @@ inputs:
         description: Package name (<owner>/<name>), when not the same as the repository
         required: false
     isOwnedByOrganization:
-        description: Is this package owned by an isOrganization ?
+        description: Indicate if package is owned by an organization
         required: false
         default: 'false'
     retentionDays:
         description: Retain image for this many days
         required: false
         default: '30'
+    testOnly:
+        description: Test mode, no deletion
+        required: false
+        default: 'false'
 
 runs:
     using: 'node16'
