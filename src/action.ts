@@ -74,8 +74,8 @@ async function run() {
 
         core.info(`\nTotal deleted entries: ${totalDeleted} / ${total}`);
     } catch (error) {
-        core.error(`An error occure: ${error}`);
-        process.exit(1);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        core.setFailed(`${(error as any)?.message ?? error}`);
     }
 }
 

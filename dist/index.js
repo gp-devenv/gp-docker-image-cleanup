@@ -47,16 +47,21 @@ const github = __importStar(__nccwpck_require__(5438));
 const github_api_controller_1 = __nccwpck_require__(4867);
 const github_container_registry_api_controller_1 = __nccwpck_require__(4959);
 const input = {
+    runAsUser: core.getInput('runAsUser', { required: true }),
     token: core.getInput('token', { required: false }),
     package: core.getInput('package', { required: false }),
-    runAsUser: core.getInput('runAsUser', { required: true }),
     isOwnedByOrganization: core.getBooleanInput('isOwnedByOrganization', { required: false }),
     retentionDays: parseInt(core.getInput('retentionDays', { required: false })),
 };
 const referenceEpoc = Date.now();
 async function run() {
+    core.debug(`input.runAsUser: ${input.runAsUser}`);
+    core.debug(`input.token: ${Array(input.token.length).join('*')}`);
+    core.debug(`input.isOwnedByOrganization: ${input.isOwnedByOrganization}`);
+    core.debug(`input.retentionDays: ${input.retentionDays}`);
+    core.debug(`github.context.repo: ${github.context.repo}`);
     const githubApiController = new github_api_controller_1.GPGithubApiController(input.token, input.package.length > 0 ? { package: input.package } : { repository: `${github.context.repo.owner}/${github.context.repo.repo}` }, input.isOwnedByOrganization);
-    const githubContainerRegistryAPIController = await github_container_registry_api_controller_1.GPGithubContainerRegistryAPIController.create(input.token, input.package.length > 0 ? { package: input.package } : { repository: `${github.context.repo.owner}/${github.context.repo.repo}` }, input.runAsUser);
+    const githubContainerRegistryAPIController = await github_container_registry_api_controller_1.GPGithubContainerRegistryAPIController.create(input.token, input.package.length > 0 ? { package: input.package } : { repository: `${github.context.repo.owner}/${github.context.repo.repo}` }, input.isOwnedByOrganization, input.runAsUser);
     try {
         const packageVersions = await githubApiController.getAllPackageVersions();
         const total = packageVersions.length;
@@ -72,28 +77,28 @@ async function run() {
         let totalDeleted = 0;
         for (const packageVersion of packageVersions) {
             if (packageVersion.tags.length > 0)
-                githubApiController.log({ info: `Package id ${packageVersion.id} created at ${packageVersion.creationDate.toISOString()} (${packageVersion.name}) with tags: ${packageVersion.tags}` });
+                core.info(`Package id ${packageVersion.id} created at ${packageVersion.creationDate.toISOString()} (${packageVersion.name}) with tags: ${packageVersion.tags}`);
             else {
                 if (untaggedPackageVersionsToKeep.findIndex((untaggedPackageVersion) => untaggedPackageVersion.name === packageVersion.name) < 0) {
                     if (referenceEpoc - packageVersion.creationDate.getTime() > input.retentionDays * 24 * 3600 * 1000) {
                         // await githubApiController.deletePackageVersion(packageVersion.id);
-                        githubApiController.log({ debug: `Package id ${packageVersion.id} created at ${packageVersion.creationDate.toISOString()} (${packageVersion.name}) ---> DELETED !` });
+                        core.info(`Package id ${packageVersion.id} created at ${packageVersion.creationDate.toISOString()} (${packageVersion.name}) ---> DELETED !`);
                         totalDeleted++;
                     }
                     else {
-                        githubApiController.log({ info: `Package id ${packageVersion.id} created at ${packageVersion.creationDate.toISOString()} (${packageVersion.name})` });
+                        core.info(`Package id ${packageVersion.id} created at ${packageVersion.creationDate.toISOString()} (${packageVersion.name})`);
                     }
                 }
                 else {
-                    githubApiController.log({ info: `Package id ${packageVersion.id} created at ${packageVersion.creationDate.toISOString()} (${packageVersion.name})` });
+                    core.info(`Package id ${packageVersion.id} created at ${packageVersion.creationDate.toISOString()} (${packageVersion.name})`);
                 }
             }
         }
-        githubApiController.log({ info: `\nTotal deleted entries: ${totalDeleted} / ${total}` });
+        core.info(`\nTotal deleted entries: ${totalDeleted} / ${total}`);
     }
     catch (error) {
-        githubApiController.log({ error: `${error}` });
-        process.exit(1);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        core.setFailed(`${error?.message ?? error}`);
     }
 }
 run().then();
@@ -143,6 +148,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.GPGithubApiController = void 0;
+const core = __importStar(__nccwpck_require__(2186));
 const github = __importStar(__nccwpck_require__(5438));
 class GPGithubApiController {
     token;
@@ -162,8 +168,8 @@ class GPGithubApiController {
             this.packageName = splitPackage[1];
         }
         this.isOwnedByOrganization = isOwnedByOrganization;
-        this.log({ debug: `Package owner: ${this.packageOwner}${this.isOwnedByOrganization ? ' (organization)' : ''}` });
-        this.log({ debug: `Package name: ${this.packageName}` });
+        core.debug(`Package owner: ${this.packageOwner}${this.isOwnedByOrganization ? ' (organization)' : ''}`);
+        core.debug(`Package name: ${this.packageName}`);
     }
     async getAllPackageVersions() {
         try {
@@ -193,7 +199,7 @@ class GPGithubApiController {
     }
     async getAllPackageVersionsOwnedByOrganization() {
         const gh = github.getOctokit(this.token);
-        const request = await gh.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
+        let request = await gh.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
             package_type: 'container',
             package_name: this.packageName,
             org: this.packageOwner,
@@ -201,9 +207,10 @@ class GPGithubApiController {
         });
         let packageVersions = request.data;
         let page = 1;
+        core.debug(`${packageVersions.length} record(s) fetched (+${request.data.length})`);
         while (request.data.length === 100) {
             page++;
-            const request = await gh.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
+            request = await gh.rest.packages.getAllPackageVersionsForPackageOwnedByOrg({
                 package_type: 'container',
                 package_name: this.packageName,
                 org: this.packageOwner,
@@ -211,6 +218,7 @@ class GPGithubApiController {
                 per_page: 100,
             });
             packageVersions = [...packageVersions, ...request.data];
+            core.debug(`${packageVersions.length} record(s) fetched (+${request.data.length})`);
         }
         return packageVersions.map((packageVersion) => {
             return { name: packageVersion.name, id: packageVersion.id, tags: packageVersion.metadata?.container?.tags || [], creationDate: new Date(packageVersion.created_at) };
@@ -218,7 +226,7 @@ class GPGithubApiController {
     }
     async getAllPackageVersionsOwnedByUser() {
         const gh = github.getOctokit(this.token);
-        const request = await gh.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
+        let request = await gh.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
             package_type: 'container',
             package_name: this.packageName,
             username: this.packageOwner,
@@ -226,9 +234,10 @@ class GPGithubApiController {
         });
         let packageVersions = request.data;
         let page = 1;
+        core.debug(`${packageVersions.length} record(s) fetched (+${request.data.length})`);
         while (request.data.length === 100) {
             page++;
-            const request = await gh.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
+            request = await gh.rest.packages.getAllPackageVersionsForPackageOwnedByUser({
                 package_type: 'container',
                 package_name: this.packageName,
                 username: this.packageOwner,
@@ -236,6 +245,7 @@ class GPGithubApiController {
                 per_page: 100,
             });
             packageVersions = [...packageVersions, ...request.data];
+            core.debug(`${packageVersions.length} record(s) fetched (+${request.data.length})`);
         }
         return packageVersions.map((packageVersion) => {
             return { name: packageVersion.name, id: packageVersion.id, tags: packageVersion.metadata?.container?.tags || [], creationDate: new Date(packageVersion.created_at) };
@@ -243,36 +253,25 @@ class GPGithubApiController {
     }
     async deletePackageVersionOwnedByOrg(packageId) {
         const gh = github.getOctokit(this.token);
+        core.debug(`Deleting ${this.packageOwner}/${this.packageName} with id ${packageId}`);
         await gh.rest.packages.deletePackageVersionForOrg({
             package_type: 'container',
             package_name: this.packageName,
             org: this.packageOwner,
             package_version_id: packageId,
         });
+        core.debug(`${this.packageOwner}/${this.packageName} with id ${packageId} deleted !`);
     }
     async deletePackageVersionOwnedByUser(packageId) {
         const gh = github.getOctokit(this.token);
+        core.debug(`Deleting ${this.packageOwner}/${this.packageName} with id ${packageId}`);
         await gh.rest.packages.deletePackageVersionForUser({
             package_type: 'container',
             package_name: this.packageName,
             username: this.packageOwner,
             package_version_id: packageId,
         });
-    }
-    log(message) {
-        const gh = github.getOctokit(this.token);
-        if ('info' in message) {
-            gh.log.info(message.info);
-        }
-        if ('warning' in message) {
-            gh.log.warn(message.warning);
-        }
-        if ('error' in message) {
-            gh.log.error(message.error);
-        }
-        if ('debug' in message) {
-            gh.log.debug(message.debug);
-        }
+        core.debug(`${this.packageOwner}/${this.packageName} with id ${packageId} deleted !`);
     }
 }
 exports.GPGithubApiController = GPGithubApiController;
@@ -322,17 +321,22 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.GPGithubContainerRegistryAPIController = void 0;
+const core = __importStar(__nccwpck_require__(2186));
 const axios = __importStar(__nccwpck_require__(8757));
 class GPGithubContainerRegistryAPIController {
     token;
     packageName;
     packageOwner;
-    constructor(token, packageOwner, packageName) {
+    isOwnedByOrganization;
+    constructor(token, packageOwner, packageName, isOwnedByOrganization) {
         this.token = token;
         this.packageName = packageName;
         this.packageOwner = packageOwner;
+        this.isOwnedByOrganization = isOwnedByOrganization;
+        core.debug(`Package owner: ${this.packageOwner}${this.isOwnedByOrganization ? ' (organization)' : ''}`);
+        core.debug(`Package name: ${this.packageName}`);
     }
-    static async create(token, targetPackage, runAsUser) {
+    static async create(token, targetPackage, isOwnedByOrganization, runAsUser) {
         let packageOwner = '';
         let packageName = '';
         if ('repository' in targetPackage) {
@@ -347,7 +351,8 @@ class GPGithubContainerRegistryAPIController {
         }
         try {
             const request = await axios.default.get('https://ghcr.io/token', { auth: { username: runAsUser, password: token }, params: { scope: `repository:${packageOwner}/${packageName}:pull` } });
-            return new GPGithubContainerRegistryAPIController(request.data.token, packageOwner, packageName);
+            core.debug(`Retrieved ghcr.io token for ${runAsUser}: ${Array(request.data.token).join('*')}`);
+            return new GPGithubContainerRegistryAPIController(request.data.token, packageOwner, packageName, isOwnedByOrganization);
         }
         catch (error) {
             throw `Could not retrive token for with scope: 'repository:${packageOwner}/${packageName}:pull'`;
@@ -361,6 +366,8 @@ class GPGithubContainerRegistryAPIController {
                     Authorization: `Bearer ${this.token}`,
                 },
             });
+            core.debug(`Retrieved manifest for ${this.packageOwner}/${this.packageName}@${tag}`);
+            core.debug(request.data);
             return request.data.manifests;
         }
         catch (error) {
