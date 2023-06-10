@@ -134,4 +134,7 @@ out
 .yarn/install-state.gz
 .pnp.*
 
+# Build
+lib/
+
 # End
