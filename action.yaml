@@ -14,17 +14,33 @@
 name: gp-devenv/gp-docker-image-cleanup
 author: Greg PFISTER
 description: Github action to cleanup Docker images hosted on Github
+branding:
+    color: red
+    icon: trash
 inputs:
+    runAsUser:
+        description: User who will be used to interact with ghcr.io API
+        required: true
+    token:
+        description: Github token for the runAsUser
+        required: false
+        default: ${{ github.token }}
     package:
         description: Package name (<owner>/<name>), when not the same as the repository
         required: false
     isOwnedByOrganization:
-        description: Is this package owned by an isOrganization ?
+        description: Indicate if package is owned by an organization
         required: false
         default: 'false'
-    runAsUser:
-        description: User who will be used to interact with ghcr.io API
-        required: true
+    retentionDays:
+        description: Retain image for this many days
+        required: false
+        default: '30'
+    testOnly:
+        description: Test mode, no deletion
+        required: false
+        default: 'false'
+
 runs:
     using: 'node16'
-    main: 'dist/main.js'
+    main: 'dist/index.js'
