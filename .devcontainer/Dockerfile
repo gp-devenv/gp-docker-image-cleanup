@@ -11,7 +11,7 @@
 # SOFTWARE.
 #
 
-FROM ghcr.io/gp-devenv/gp-node-devenv:22.04-16-2
+FROM ghcr.io/gp-devenv/gp-node-devenv:24.04-20-1
 
 USER root
 
