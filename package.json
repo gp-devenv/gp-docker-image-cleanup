@@ -1,6 +1,6 @@
 {
   "name": "gp-docker-image-cleanup",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Github action to cleanup Docker images hosted on Github",
   "main": "lib/action.js",
   "scripts": {
